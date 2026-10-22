@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# ==========================================
+# PC VIRTUAL - BUILD COMPLETA
+# Desktop XFCE + acesso remoto RDP
+# ==========================================
+
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Execute com: sudo bash pc-virtual.sh"
+  exit 1
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+
+USERNAME="pcvirtual"
+PASSWORD="$(openssl rand -hex 16)"
+
+echo "Atualizando sistema..."
+apt-get update
+apt-get install -y \
+  xfce4 xfce4-goodies xrdp dbus-x11 \
+  openssl sudo curl wget git htop \
+  pciutils mesa-utils ufw
+
+echo "Criando usuário..."
+if ! id "$USERNAME" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "$USERNAME"
+fi
+
+echo "$USERNAME:$PASSWORD" | chpasswd
+
+echo "Configurando desktop..."
+echo "startxfce4" > "/home/$USERNAME/.xsession"
+chown "$USERNAME:$USERNAME" "/home/$USERNAME/.xsession"
+chmod 700 "/home/$USERNAME/.xsession"
+
+echo "Configurando XRDP..."
+systemctl enable xrdp
+systemctl restart xrdp
+
+echo "Verificando hardware..."
+echo "CPU:"
+lscpu | grep -E 'Model name|CPU\(s\)' | head -4 || true
+
+echo
+echo "Memória:"
+free -h
+
+echo
+echo "Disco:"
+df -h /
+
+echo
+echo "GPU:"
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi
+else
+  echo "GPU NVIDIA não confirmada."
+fi
+
+echo
+echo "=========================================="
+echo "       PC VIRTUAL PREPARADO"
+echo "=========================================="
+echo "Usuário: $USERNAME"
+echo "Senha inicial: $PASSWORD"
+echo
+echo "IP local:"
+hostname -I || true
+echo
+echo "O IP público deve ser consultado no painel"
+echo do provedor de nuvem.
+echo
+echo "Conecte por RDP através de uma VPN ou rede"
+echo privada. Não exponha a porta 3389 à internet.
+echo "=========================================="
